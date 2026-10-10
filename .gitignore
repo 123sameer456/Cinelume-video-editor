@@ -1,0 +1,28 @@
+venv/*
+.commandcode/*
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+
+# Local data (uploads, work, outputs, models, music, job db)
+data/
+
+# Env
+.env
+
+# Frontend
+node_modules/
+frontend/dist/
+
+# Test artifacts
+tests/artifacts/
+
+# OS
+Thumbs.db
+.DS_Store
