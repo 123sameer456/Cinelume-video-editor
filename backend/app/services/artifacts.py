@@ -8,7 +8,7 @@ from ..core.errors import ErrorCode, PipelineError
 
 # kind -> (scope, filename)
 _KINDS: dict[str, tuple[str, str]] = {
-    "video": ("output", "output.mp4"),
+    "video": ("output", "final.mp4"),
     "cover": ("output", "cover.png"),
     "transcript": ("output", "transcript.json"),
     "log": ("work", "job.log"),

@@ -20,6 +20,7 @@ from ..models.chunk import ChunkSpec
 from ..models.media import MediaInfo
 from ..models.options import Encoder, Fit, JobOptions, Resolution
 from .ffmpeg import capabilities, has_filter, run_ffmpeg
+from .fonts import font_files_for_family
 from .segments import Segment
 
 ProgressCallback = Callable[[float], None]  # percent 0..100
@@ -52,6 +53,17 @@ def playback_fps(options: JobOptions, info: MediaInfo) -> int:
     if fps <= 0:
         fps = 30.0
     return max(15, min(60, int(round(fps))))
+
+
+def output_size(options: JobOptions, info: MediaInfo) -> tuple[int, int]:
+    """The final frame size after scale/crop - the ASS PlayRes must match it."""
+    resolution = options.output.resolution
+    if resolution is Resolution.ORIGINAL:
+        width = info.display_width or info.width or 640
+        height = info.display_height or info.height or 360
+        return width - width % 2, height - height % 2
+    out_w, out_h = (int(v) for v in resolution.value.split("x"))
+    return out_w, out_h
 
 
 def build_placed(segments: list[Segment], options: JobOptions) -> list[Placed]:
@@ -199,7 +211,7 @@ def _build_graph(
     return ";\n".join(lines) + "\n"
 
 
-def _stage_ass(workdir: Path, ass_path: Path | None) -> str | None:
+def _stage_ass(workdir: Path, ass_path: Path | None, font_family: str | None) -> str | None:
     if ass_path is None:
         return None
     source = Path(ass_path)
@@ -208,6 +220,15 @@ def _stage_ass(workdir: Path, ass_path: Path | None) -> str | None:
     target = workdir / "subs.ass"
     if source.resolve() != target.resolve():
         shutil.copyfile(source, target)
+    # Copy the family's fonts next to it so `ass=subs.ass:fontsdir=.` resolves them
+    # without ever building a Windows path inside a filter string.
+    for font in font_files_for_family(font_family or ""):
+        try:
+            destination = workdir / font.name
+            if font.resolve() != destination.resolve():
+                shutil.copyfile(font, destination)
+        except OSError:
+            continue
     return target.name
 
 
@@ -279,6 +300,7 @@ def render_video(
     warnings: list[str] | None = None,
     cancel_event: Any | None = None,
     on_progress: ProgressCallback | None = None,
+    output_name: str = "chunk_out.mkv",
 ) -> Path:
     if not placed:
         raise PipelineError(ErrorCode.FFMPEG_FAILED, "No segments to render.", stage="render")
@@ -293,7 +315,7 @@ def render_video(
         warnings.append(
             "HDR source but tonemap filters are unavailable; colors may look washed out."
         )
-    ass_name = _stage_ass(workdir, ass_path)
+    ass_name = _stage_ass(workdir, ass_path, options.subtitles.font_family)
     with_audio = audio_dn is not None
 
     expected = sum(item.segment.duration for item in placed) or 1.0
@@ -343,7 +365,7 @@ def render_video(
         )
 
     if len(batches) == 1:
-        out = workdir / "chunk_out.mkv"
+        out = workdir / output_name
         _render_batch(batches[0], out, 0.0)
         return out
 
@@ -356,7 +378,7 @@ def render_video(
 
     manifest = workdir / "concat.txt"
     manifest.write_text("".join(f"file '{p.name}'\n" for p in parts), encoding="utf-8")
-    out = workdir / "chunk_out.mkv"
+    out = workdir / output_name
     run_ffmpeg(
         [
             "-f",

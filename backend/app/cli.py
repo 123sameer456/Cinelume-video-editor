@@ -27,30 +27,18 @@ def _load_options(path: str | None) -> JobOptions:
     return JobOptions(**data)
 
 
-def _export(chunk_out: Path, out_path: Path) -> None:
+def _export(final: Path, out_path: Path) -> None:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     if out_path.suffix.lower() in (".mp4", ".mov"):
+        # final.mp4 is already H.264 + AAC with faststart: no re-encode needed.
+        shutil.copyfile(final, out_path)
+    else:
         run_ffmpeg(
-            [
-                "-i",
-                str(chunk_out),
-                "-c:v",
-                "copy",
-                "-c:a",
-                "aac",
-                "-b:a",
-                "192k",
-                "-movflags",
-                "+faststart",
-                "-y",
-                str(out_path),
-            ],
+            ["-i", str(final), "-c", "copy", "-y", str(out_path)],
             cwd=out_path.parent,
-            timeout=1800,
+            timeout=600,
             log_path=out_path.parent / "export.log",
         )
-    else:
-        shutil.copyfile(chunk_out, out_path)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -66,6 +54,12 @@ def build_parser() -> argparse.ArgumentParser:
     cut.add_argument("--threshold", type=float)
     cut.add_argument("--auto-threshold", action="store_true", dest="auto_threshold")
     cut.add_argument("--no-denoise", action="store_true", dest="no_denoise")
+    cut.add_argument(
+        "--no-subs",
+        action="store_true",
+        dest="no_subs",
+        help="Skip subtitles (no Whisper model needed).",
+    )
     cut.add_argument("--keep-intermediates", action="store_true", dest="keep_intermediates")
     cut.set_defaults(func=cmd_cut)
     return parser
@@ -81,6 +75,8 @@ def cmd_cut(args: argparse.Namespace) -> int:
         options.silence.threshold_db = args.threshold
     if args.no_denoise:
         options.denoise.enabled = False
+    if args.no_subs:
+        options.subtitles.enabled = False
 
     source = Path(args.input)
     if not source.exists():
@@ -103,6 +99,10 @@ def cmd_cut(args: argparse.Namespace) -> int:
         result = run_single_chunk(source, options, workdir, info=info, on_progress=progress)
         print()
         _export(result.output, out_path)
+        cover_out = None
+        if result.cover is not None:
+            cover_out = out_path.with_name(f"{out_path.stem}_cover{result.cover.suffix}")
+            shutil.copyfile(result.cover, cover_out)
     finally:
         if own_workdir and not args.keep_intermediates:
             shutil.rmtree(workdir, ignore_errors=True)
@@ -114,6 +114,8 @@ def cmd_cut(args: argparse.Namespace) -> int:
     for warning in result.warnings:
         print(f"  warning: {warning}")
     print(f"Output         : {out_path}")
+    if cover_out is not None:
+        print(f"Cover          : {cover_out}")
     return 0
 
 

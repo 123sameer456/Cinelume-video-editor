@@ -33,3 +33,15 @@ def font_path(family: str) -> Path | None:
         if font["family"].lower() == family.lower():
             return Path(font["path"])
     return None
+
+
+def font_files_for_family(family: str) -> list[Path]:
+    """All files belonging to a family (regular/bold/italic), for `ass fontsdir`."""
+    if not family:
+        return []
+    wanted = family.lower()
+    files = [Path(f["path"]) for f in list_fonts() if f["family"].lower() == wanted]
+    if not files:
+        # Bold/italic variants can report a different family name; match by stem.
+        files = [p for p in FONTS_DIR.rglob("*.ttf") if p.stem.lower().startswith(wanted)]
+    return files

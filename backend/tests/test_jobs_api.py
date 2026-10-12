@@ -13,7 +13,11 @@ TERMINAL = {"completed", "failed", "cancelled"}
 def _create_job(client, upload_id: str, chunking: str = "off") -> str:
     resp = client.post(
         "/api/jobs",
-        json={"upload_id": upload_id, "options": {"performance": {"chunking": chunking}}},
+        json={
+            "upload_id": upload_id,
+            # subtitles off: these tests exercise jobs/progress/cancel, not the ASR model
+            "options": {"performance": {"chunking": chunking}, "subtitles": {"enabled": False}},
+        },
     )
     assert resp.status_code == 201, resp.text
     return resp.json()["id"]

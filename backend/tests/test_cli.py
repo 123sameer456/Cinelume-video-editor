@@ -12,7 +12,7 @@ from app.services.probe import probe
 def test_cli_cut_removes_silence(tmp_path: Path, make_talking_video) -> None:
     video = make_talking_video()
     out = tmp_path / "out.mp4"
-    assert cli.main(["cut", str(video), "--out", str(out)]) == 0
+    assert cli.main(["cut", str(video), "--out", str(out), "--no-subs"]) == 0
     assert out.exists()
     assert probe(out).duration < 5.5  # 6s in, silences removed
 
@@ -21,8 +21,14 @@ def test_cli_min_silence_flag_changes_result(tmp_path: Path, make_talking_video)
     video = make_talking_video(bursts=[(0.0, 1.0), (1.4, 2.4), (3.9, 4.9)], duration=4.9)
     short = tmp_path / "short.mp4"
     long = tmp_path / "long.mp4"
-    assert cli.main(["cut", str(video), "--out", str(short), "--min-silence", "0.3"]) == 0
-    assert cli.main(["cut", str(video), "--out", str(long), "--min-silence", "1.0"]) == 0
+    assert (
+        cli.main(["cut", str(video), "--out", str(short), "--min-silence", "0.3", "--no-subs"])
+        == 0
+    )
+    assert (
+        cli.main(["cut", str(video), "--out", str(long), "--min-silence", "1.0", "--no-subs"])
+        == 0
+    )
     assert probe(short).duration < probe(long).duration
 
 
@@ -31,7 +37,10 @@ def test_cli_options_file_can_disable_silence(tmp_path: Path, make_talking_video
     options = tmp_path / "opts.json"
     options.write_text(json.dumps({"silence": {"enabled": False}}), encoding="utf-8")
     out = tmp_path / "out.mp4"
-    assert cli.main(["cut", str(video), "--options", str(options), "--out", str(out)]) == 0
+    assert (
+        cli.main(["cut", str(video), "--options", str(options), "--out", str(out), "--no-subs"])
+        == 0
+    )
     assert probe(out).duration > 5.7
 
 

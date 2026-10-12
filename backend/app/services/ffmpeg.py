@@ -10,6 +10,7 @@ Rules enforced here (G2, G4):
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import tempfile
 import threading
@@ -182,6 +183,81 @@ def run_ffmpeg(
 
 
 # ----------------------------------------------------------------------- ffprobe
+def run_ffmpeg_capture(
+    args: list[str],
+    *,
+    cwd: Path,
+    timeout: float,
+    cancel_event: CancelEvent | None = None,
+    log_path: Path | None = None,
+    loglevel: str = "warning",
+) -> str:
+    """Run ffmpeg and return stderr (for loudnorm measurement passes, no progress).
+
+    `loglevel="info"` is needed for `loudnorm=print_format=json`, which prints its
+    report to stderr at info level.
+    """
+    exe = get_settings().ffmpeg_path
+    full_args = [exe, "-hide_banner", "-nostdin", "-nostats", "-loglevel", loglevel, *args]
+    if log_path is None:
+        log_path = Path(tempfile.mkstemp(prefix="ffmpeg_", suffix=".log")[1])
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    chunks: list[str] = []
+    started = time.monotonic()
+    with open(log_path, "ab") as log_fh:
+        log_fh.write(f"\n$ {' '.join(full_args)}\n".encode("utf-8", errors="replace"))
+        log_fh.flush()
+        try:
+            proc = subprocess.Popen(
+                full_args,
+                cwd=str(cwd) if cwd else None,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+        except FileNotFoundError as exc:
+            raise PipelineError(
+                ErrorCode.FFMPEG_MISSING,
+                f"FFmpeg executable not found: {exe}",
+                stage="ffmpeg",
+                hint="Install FFmpeg (winget install Gyan.FFmpeg) or set FFMPEG_PATH.",
+            ) from exc
+
+        def _reader() -> None:
+            assert proc.stderr is not None
+            for line in proc.stderr:
+                chunks.append(line)
+
+        reader = threading.Thread(target=_reader, name="ffmpeg-stderr", daemon=True)
+        reader.start()
+
+        while reader.is_alive():
+            if cancel_event is not None and cancel_event.is_set():
+                kill_process_tree(proc)
+                raise PipelineError(ErrorCode.CANCELLED, "Cancelled.", stage="ffmpeg")
+            if timeout and (time.monotonic() - started) > timeout:
+                kill_process_tree(proc)
+                raise PipelineError(ErrorCode.TIMEOUT, "FFmpeg timed out.", stage="ffmpeg")
+            reader.join(0.2)
+        reader.join(5)
+        stderr = "".join(chunks)
+        returncode = proc.wait()
+
+    if returncode != 0:
+        log_path.write_text(stderr, encoding="utf-8", errors="replace")
+        raise PipelineError(
+            ErrorCode.FFMPEG_FAILED,
+            "FFmpeg failed." + (f" Last output:\n{stderr[-500:]}" if stderr else ""),
+            stage="ffmpeg",
+        )
+    return stderr
+
+
+# ----------------------------------------------------------------------- ffprobe
 def run_ffprobe_json(path: Path, timeout: float = 60.0) -> dict[str, Any]:
     exe = get_settings().ffprobe_path
     args = [
@@ -234,6 +310,27 @@ def run_ffprobe_json(path: Path, timeout: float = 60.0) -> dict[str, Any]:
 
 
 # ------------------------------------------------------------------------ version
+_LoudnormJSON = re.compile(r"\{[^{}]*\"input_i\"[^{}]*\}")
+
+
+def parse_loudnorm(stderr: str) -> dict[str, float]:
+    """Parse loudnorm's `print_format=json` report; non-numeric values are skipped."""
+    match = _LoudnormJSON.search(stderr)
+    if not match:
+        return {}
+    try:
+        data = json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return {}
+    values: dict[str, float] = {}
+    for key, value in data.items():
+        try:
+            values[key] = float(value)
+        except (TypeError, ValueError):
+            continue
+    return values
+
+
 def ffmpeg_version() -> str:
     exe = get_settings().ffmpeg_path
     try:

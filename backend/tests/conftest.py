@@ -153,6 +153,30 @@ def make_wav(tmp_path):
     return _make
 
 
+@pytest.fixture
+def make_music(tmp_path):
+    """WAV music track (continuous tone + light noise)."""
+
+    def _make(
+        name: str = "music.wav",
+        duration: float = 5.0,
+        freq: float = 440.0,
+        amp: float = 0.3,
+    ) -> Path:
+        out = tmp_path / name
+        expr = f"{amp}*sin(2*PI*{freq}*t)+0.01*random(0)"
+        ffmpeg_cmd(
+            [
+                "-f", "lavfi", "-i", f"aevalsrc='{expr}':s=48000:d={duration}",
+                "-c:a", "pcm_s16le",
+                str(out),
+            ]
+        )
+        return out
+
+    return _make
+
+
 def upload_file(client, path: Path, part_size: int = PART_SIZE) -> tuple[str, dict]:
     size = path.stat().st_size
     resp = client.post("/api/uploads", json={"filename": path.name, "total_size": size})

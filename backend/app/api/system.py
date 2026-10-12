@@ -12,6 +12,7 @@ from .. import __version__
 from ..core.config import get_settings
 from ..services.ffmpeg import capabilities
 from ..services.fonts import list_fonts
+from ..services.transcribe import list_models
 from ..workers.media_pool import compute_worker_count
 
 router = APIRouter(prefix="/api/system", tags=["system"])
@@ -39,7 +40,7 @@ async def get_system() -> dict:
         "ram": {"total": vm.total, "available": vm.available},
         "cuda": cuda_available(caps),
         "workers": compute_worker_count(),
-        "models": [],
+        "models": list_models(),
         "fonts": list_fonts(),
         "limits": {
             "max_upload_gb": settings.max_upload_gb,

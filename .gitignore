@@ -21,7 +21,7 @@ node_modules/
 frontend/dist/
 
 # Test artifacts
-tests/artifacts/
+**/tests/artifacts/
 
 # OS
 Thumbs.db

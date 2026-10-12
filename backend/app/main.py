@@ -19,8 +19,11 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__
+from .api import cover as cover_api
 from .api import fonts as fonts_api
 from .api import jobs as jobs_api
+from .api import models as models_api
+from .api import music as music_api
 from .api import options as options_api
 from .api import system as system_api
 from .api import uploads as uploads_api
@@ -125,6 +128,9 @@ async def access_token_middleware(request: Request, call_next):
 
 app.include_router(system_api.router)
 app.include_router(options_api.router)
+app.include_router(models_api.router)
+app.include_router(music_api.router)
+app.include_router(cover_api.router)
 app.include_router(uploads_api.router)
 app.include_router(jobs_api.router)
 app.include_router(fonts_api.router)
