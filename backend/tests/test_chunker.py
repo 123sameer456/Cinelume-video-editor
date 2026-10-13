@@ -116,7 +116,7 @@ def test_plan_chunks_splits_long_videos(tmp_path) -> None:
         ]
     )
     options = JobOptions(
-        performance={"chunking": "on", "chunk_threshold_sec": 5, "target_chunk_sec": 10}
+        performance={"chunking": "on", "chunk_threshold_sec": 60, "target_chunk_sec": 30}
     )
     info = probe(video)
     chunks = plan_chunks(video, options, info, tmp_path, 30)

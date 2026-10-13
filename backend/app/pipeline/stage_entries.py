@@ -103,8 +103,11 @@ def stage_audio_entry(
         json.dumps(payload, ensure_ascii=False), encoding="utf-8"
     )
     write_done_marker(chunk_dir, "audio", key)
-    _send(progress_queue, {"index": index, "stage": "audio", "stage_pct": 1.0, "status": "done"})
-    return payload
+    _send(
+        progress_queue,
+        {"index": index, "stage": "audio", "stage_pct": 1.0, "status": "done"},
+    )
+    return {**payload, "cached": False}
 
 
 def stage_transcribe_entry(

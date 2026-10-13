@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict
 from pathlib import Path
+from typing import Any
 
 from ..core.errors import ErrorCode, PipelineError
 from ..models.chunk import ChunkSpec
@@ -65,7 +66,12 @@ def plan_chunks(
             ErrorCode.UNSUPPORTED_MEDIA, "The video has zero duration.", stage="chunker"
         )
 
-    if performance.chunking is ChunkingMode.OFF or duration <= performance.chunk_threshold_sec:
+    if performance.chunking is ChunkingMode.OFF:
+        chunks = [ChunkSpec(index=0, src_start=0.0, src_end=duration)]
+    elif (
+        performance.chunking is ChunkingMode.AUTO
+        and duration <= performance.chunk_threshold_sec
+    ):
         chunks = [ChunkSpec(index=0, src_start=0.0, src_end=duration)]
     else:
         env = coarse_envelope(source, workdir)
@@ -92,7 +98,7 @@ def _snap(value: float, fps: float) -> float:
 
 
 def find_boundaries(
-    env: Envelope | "np.ndarray",
+    env: Any,
     hop_sec: float,
     duration: float,
     performance,
@@ -115,7 +121,7 @@ def find_boundaries(
             boundary = _snap((start + end) / 2, fps)
             hard = False
         else:
-            boundary = _snap(lowest_energy_point(env.values, hop_sec, low, high), fps)
+            boundary = _snap(lowest_energy_point(values, hop_sec, low, high), fps)
             hard = True
         boundaries.append((boundary, hard))
         index += 1

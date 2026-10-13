@@ -628,6 +628,17 @@ class JobManager:
             return json.loads(stage_file.read_text(encoding="utf-8"))["segments"]
         return []
 
+    def _chunk_output_duration(self, workdir: Path, chunk: ChunkSpec) -> float:
+        """A chunk's OUTPUT duration (after cutting), not its source span."""
+        path = chunk_dir(workdir, chunk.index) / "audio_stage.json"
+        if path.exists():
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                return float(data.get("output_duration", chunk.duration))
+            except (OSError, json.JSONDecodeError, ValueError):
+                pass
+        return chunk.duration
+
     async def _master_stage(
         self, job_id: str, chunks: list[ChunkSpec], chunk_outputs: list[dict[str, Any]],
         src: Path, workdir: Path, outdir: Path, options: JobOptions, fps: int,
@@ -642,9 +653,8 @@ class JobManager:
         await loop.run_in_executor(
             None, lambda: merge_chunks(outputs, merged, workdir, cancel_event)
         )
-        await loop.run_in_executor(
-            None, lambda: verify_merge(merged, sum(c.duration for c in chunks), fps)
-        )
+        expected = sum(self._chunk_output_duration(workdir, chunk) for chunk in chunks)
+        await loop.run_in_executor(None, lambda: verify_merge(merged, expected, fps))
 
         tracker.set_tail(0.5)
         self.db.update_job(job_id, overall_pct=tracker.overall_pct(), stage="master")

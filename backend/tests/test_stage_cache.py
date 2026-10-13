@@ -76,8 +76,10 @@ def test_stage_audio_entry_resumes_from_the_marker(tmp_path, make_talking_video)
     assert second["segments"] == first["segments"]
 
 
-def test_chunked_and_single_chunk_give_the_same_duration(client, make_talking_video) -> None:
-    upload_id, _ = upload_file(client, make_talking_video(duration=12.0))
+def test_chunked_and_single_chunk_give_the_same_duration(
+    client, make_talking_video, tmp_path
+) -> None:
+    upload_id, _ = upload_file(client, make_talking_video(duration=40.0))
     no_subtitles = {"performance": {"chunking": "off"}, "subtitles": {"enabled": False}}
 
     single = client.post("/api/jobs", json={"upload_id": upload_id, "options": no_subtitles}).json()
@@ -85,7 +87,7 @@ def test_chunked_and_single_chunk_give_the_same_duration(client, make_talking_vi
     assert single_job["status"] == "completed", single_job
 
     chunked_options = {
-        "performance": {"chunking": "on", "chunk_threshold_sec": 5, "target_chunk_sec": 3},
+        "performance": {"chunking": "on", "chunk_threshold_sec": 60, "target_chunk_sec": 30},
         "subtitles": {"enabled": False},
     }
     chunked = client.post(
@@ -98,9 +100,17 @@ def test_chunked_and_single_chunk_give_the_same_duration(client, make_talking_vi
     assert len(chunked_job["chunks"]) >= 2
     assert all(c["status"] == "done" for c in chunked_job["chunks"])
 
-    single_dur = float(
-        client.get(f"/api/jobs/{single['id']}/files/video").headers.get("content-length", 0)
-    )
-    assert single_dur > 0
-    # both outputs exist and are non-trivial
-    assert chunked_job["overall_pct"] == 100.0
+    single_dur = _video_duration(client, single["id"], tmp_path)
+    chunked_dur = _video_duration(client, chunked["id"], tmp_path)
+    assert single_dur > 0 and chunked_dur > 0
+    # 1 chunk vs 4 chunks: the removed silences are the same, so the durations match
+    assert abs(single_dur - chunked_dur) < 0.3
+
+
+def _video_duration(client, job_id: str, tmp: Path) -> float:
+    from app.services.probe import probe
+
+    resp = client.get(f"/api/jobs/{job_id}/files/video")
+    path = tmp / f"{job_id}.mp4"
+    path.write_bytes(resp.content)
+    return float(probe(path).duration)
