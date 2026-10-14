@@ -276,6 +276,33 @@ def generate_thumbnail(source: Path, out_path: Path, duration: float) -> Path | 
     return out_path if out_path.exists() else None
 
 
+def add_like_upload(path: Path, name: str | None = None) -> str:
+    """Create a complete upload from an existing local file (benchmark/tooling only)."""
+    upload_id = uuid.uuid4().hex[:16]
+    directory = ensure_dir(upload_dir(upload_id))
+    ext = _safe_ext(name or path.name)
+    target = directory / f"source.{ext}"
+    shutil.copyfile(path, target)
+    info = probe(target)
+    validate_video_upload(info, get_settings().max_duration_sec)
+    thumbnail = generate_thumbnail(target, directory / "thumb.jpg", info.duration)
+    meta = {
+        "upload_id": upload_id,
+        "filename": name or path.name,
+        "size_bytes": target.stat().st_size,
+        "status": UploadStatus.COMPLETE.value,
+        "ext": ext,
+        "part_size": PART_SIZE,
+        "created_at": time.time(),
+        "media": info.model_dump(),
+        "warnings": info.warnings,
+        "source": target.name,
+        "thumbnail": thumbnail is not None,
+    }
+    _write_meta(upload_id, meta)
+    return upload_id
+
+
 def get_upload(upload_id: str) -> dict[str, Any]:
     meta = _read_meta(upload_id)
     media = MediaInfo(**meta["media"]) if meta.get("media") else None

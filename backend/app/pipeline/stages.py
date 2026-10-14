@@ -131,11 +131,20 @@ def stage_audio(
         segments = [Segment(0.0, chunk.duration)]
     else:
         if looks_all_silent(env.values, threshold):
-            raise PipelineError(
-                ErrorCode.NO_SPEECH,
-                "No speech above the threshold was found.",
-                stage="silence",
-                hint="Lower threshold_db, or enable auto_threshold.",
+            # An entirely-silent CHUNK is skipped by the merge; the caller decides
+            # whether that is fatal (the whole file) or not (one of many chunks).
+            warnings.append("This chunk is silent everywhere below the threshold.")
+            return AudioStageResult(
+                audio_raw,
+                audio_dn,
+                None,
+                [],
+                [],
+                threshold,
+                chunk.duration,
+                0.0,
+                warnings,
+                has_audio=True,
             )
         segments = compute_keep_segments(env.values, env.hop_sec, chunk.duration, fps, params)
     if not segments:
@@ -362,6 +371,13 @@ def run_single_chunk(
     fps = playback_fps(options, info)
 
     audio = stage_audio(workdir, chunk, source, options, info, fps, cancel_event=cancel_event)
+    if not audio.segments:
+        raise PipelineError(
+            ErrorCode.NO_SPEECH,
+            "Every part of the audio was treated as silence.",
+            stage="silence",
+            hint="Lower threshold_db, or enable auto_threshold.",
+        )
 
     if ass_path is None and options.subtitles.enabled:
         if audio.audio_cut is None:

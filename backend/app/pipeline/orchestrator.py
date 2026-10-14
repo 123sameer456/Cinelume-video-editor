@@ -388,6 +388,7 @@ class JobManager:
 
         drain: asyncio.Task | None = None
         try:
+            _require_disk_space(src)
             fps = playback_fps(options, info)
             chunks = plan_chunks(src, options, info, workdir, fps)
             self.db.set_chunks(
@@ -414,7 +415,7 @@ class JobManager:
             options_json = json.dumps(options.model_dump(mode="json"))
             info_json = json.dumps(info.model_dump())
 
-            audio_futures = self._submit_audio(
+            audio_submitters = self._submit_audio(
                 chunks,
                 src,
                 workdir,
@@ -425,15 +426,16 @@ class JobManager:
                 log_path,
             )
             language = await self._lock_language(
-                chunks, audio_futures, workdir, options, options_json,
+                chunks, audio_submitters, workdir, options, options_json,
                 cancel_event, progress_queue, log_path, jlog,
             )
 
             chunk_outputs = await asyncio.gather(
                 *(
                     self._pipeline(
+                        job_id,
                         chunk,
-                        audio_futures[chunk.index],
+                        audio_submitters[chunk.index],
                         language,
                         src,
                         workdir,
@@ -544,14 +546,19 @@ class JobManager:
         return language
 
     async def _pipeline(
-        self, chunk: ChunkSpec, audio_submit: Callable[[], Future], language: str | None,
-        src: Path, workdir: Path, options: JobOptions, options_json: str, info_json: str,
-        cancel_event, progress_queue, log_path: Path, jlog: Any,
+        self, job_id: str, chunk: ChunkSpec, audio_submit: Callable[[], Future],
+        language: str | None, src: Path, workdir: Path, options: JobOptions,
+        options_json: str, info_json: str, cancel_event, progress_queue, log_path: Path,
+        jlog: Any,
     ) -> dict[str, Any]:
         """A -> B -> C for one chunk; runs concurrently with the other chunks."""
         await self._retry(audio_submit, cancel_event)
         directory = chunk_dir(workdir, chunk.index)
         segments = self._load_segments(directory)
+        if not segments:
+            # Entirely silent chunk: skipped in the merge, not fatal (unless all are).
+            self.db.update_chunk(job_id, chunk.index, status=ChunkStatus.SKIPPED.value)
+            return {"output": None, "skipped": True}
         audio_end = sum(end - start for start, end in segments)
         audio_cut = directory / "audio_cut.wav"
         audio_dn = directory / "audio_dn.wav"
@@ -587,6 +594,7 @@ class JobManager:
                     )
 
         assert self._pool is not None
+        _await_free_memory()
         return await self._retry(
             lambda: self._pool.submit(
                 stage_video_entry,
@@ -812,3 +820,31 @@ class JobManager:
         for path in (work_dir(job_id), output_dir(job_id)):
             if path.exists():
                 shutil.rmtree(path, ignore_errors=True)
+
+
+def _require_disk_space(source: Path) -> None:
+    """Roughly 3x the input size: chunk outputs + merged + final."""
+    from ..services.uploads import require_free_space
+
+    try:
+        size = source.stat().st_size
+    except OSError:
+        return
+    require_free_space(source.parent, size * 3, "chunking")
+
+
+def _await_free_memory(pause_seconds: float = 5.0, max_wait: float = 120.0) -> None:
+    """Memory watchdog: pause submitting new work while free RAM is low."""
+    threshold = 500 * 1024 * 1024  # 500 MB
+    waited = 0.0
+    while waited < max_wait:
+        try:
+            if psutil.virtual_memory().available > threshold:
+                return
+        except psutil.Error:
+            return
+        time.sleep(pause_seconds)
+        waited += pause_seconds
+    log.warning(
+        f"free memory stayed below {threshold / 1e6:.0f} MB for {max_wait:.0f}s; continuing"
+    )

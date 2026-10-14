@@ -79,12 +79,17 @@ def test_stage_audio_entry_resumes_from_the_marker(tmp_path, make_talking_video)
 def test_chunked_and_single_chunk_give_the_same_duration(
     client, make_talking_video, tmp_path
 ) -> None:
-    upload_id, _ = upload_file(client, make_talking_video(duration=40.0))
+    upload_id, _ = upload_file(client, make_talking_video(duration=120.0))
     no_subtitles = {"performance": {"chunking": "off"}, "subtitles": {"enabled": False}}
 
     single = client.post("/api/jobs", json={"upload_id": upload_id, "options": no_subtitles}).json()
-    single_job = wait_for_status(client, single["id"], {"completed", "failed"}, timeout=180)
-    assert single_job["status"] == "completed", single_job
+    single_job = wait_for_status(client, single["id"], {"completed", "failed"}, timeout=600)
+    assert single_job["status"] == "completed", (
+        single_job["status"],
+        single_job.get("error"),
+        single_job.get("message"),
+        single_job.get("stage"),
+    )
 
     chunked_options = {
         "performance": {"chunking": "on", "chunk_threshold_sec": 60, "target_chunk_sec": 30},
@@ -93,8 +98,13 @@ def test_chunked_and_single_chunk_give_the_same_duration(
     chunked = client.post(
         "/api/jobs", json={"upload_id": upload_id, "options": chunked_options}
     ).json()
-    chunked_job = wait_for_status(client, chunked["id"], {"completed", "failed"}, timeout=300)
-    assert chunked_job["status"] == "completed", chunked_job
+    chunked_job = wait_for_status(client, chunked["id"], {"completed", "failed"}, timeout=600)
+    assert chunked_job["status"] == "completed", (
+        chunked_job["status"],
+        chunked_job.get("error"),
+        chunked_job.get("message"),
+        chunked_job.get("stage"),
+    )
 
     # chunk states were tracked per chunk
     assert len(chunked_job["chunks"]) >= 2

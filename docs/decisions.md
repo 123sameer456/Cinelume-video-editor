@@ -144,6 +144,40 @@ Ambiguities resolved while implementing, with the safest default chosen.
 - **The CLI cleans up its temp workdir in a `finally`**, so the cover is copied out
   before the directory is removed (the first version copied from a deleted folder).
 
+## Phase 5 - Chunking, parallel processing, merge, resume
+
+- **`chunking="on"` chunks regardless of `chunk_threshold_sec`.** The plan's rule is
+  "off, or auto and duration <= threshold -> one chunk", so the threshold only applies to
+  `auto`; the first implementation applied it to `on` too and never chunked short videos.
+- **`verify_merge` compares against the chunk OUTPUT durations, not source spans.** The
+  first version compared the merged file with `sum(chunk.src durations)` and failed with
+  "Merged duration 4.1s does not match the chunks (12s)" - the whole point of the cut is
+  to make the output shorter. The expected duration now comes from each chunk's
+  `audio_stage.json` (`output_duration`).
+- **An entirely-silent CHUNK is skipped, not fatal.** `stage_audio` returns an empty
+  segment list with a warning; the orchestrator marks the chunk `skipped` and omits it
+  from the merge; `merge_chunks` raises `NO_SPEECH` only when *every* chunk is silent.
+  `run_single_chunk` (CLI) still raises `NO_SPEECH` for a fully silent file.
+- **Stage submitters, not futures.** `_submit_audio` returns callables that submit a
+  *fresh* future, because retrying a future that already failed with
+  `BrokenProcessPool` just returns the same exception again.
+- **`_retry` checks the cancel event before every attempt.** Without that, cancelling
+  killed the workers, the broken futures triggered pool rebuilds, and the job ended
+  `failed` instead of `cancelled`.
+- **ASR workers are persistent** (`ProcessPoolExecutor(initializer=init_asr_worker)`), so
+  the Whisper model loads once per worker. The pool is created lazily and only when
+  subtitles are enabled; a missing model fails the job with `MODEL_MISSING` before any
+  work starts.
+- **Subtitle ASS is built in the main process** after stage B, from the `words.json` the
+  ASR worker wrote - words never cross a process boundary inside the model.
+- **Debug scripts must guard `if __name__ == "__main__"`**: a script that creates a
+  multiprocessing Manager at import time makes every spawn child re-import the main
+  module, which recurses and hangs. This bit the ad-hoc debugging scripts; the app
+  itself (`uvicorn app.main:app`) is fine.
+- **`scripts/benchmark.py`** runs the same synthetic clip through 1/2/4 workers and
+  prints wall time, speedup and peak RSS; run it before tuning the defaults.
+
+
 
 
 

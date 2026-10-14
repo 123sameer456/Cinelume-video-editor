@@ -108,8 +108,9 @@ def test_plan_chunks_splits_long_videos(tmp_path) -> None:
         [
             "-f", "lavfi", "-i", "testsrc2=size=320x240:rate=30",
             "-f", "lavfi", "-i",
-            "aevalsrc='0.5*sin(2*PI*220*t)*(between(t,9,19)+between(t,19,29))':s=48000:d=40",
-            "-t", "40",
+            "aevalsrc='0.6*sin(2*PI*220*t)*(between(t,0,1.2)+between(t,2.4,3.6)+between(t,5,6))'"
+            ":s=48000:d=120",
+            "-t", "120",
             "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
             "-c:a", "aac", "-shortest",
             str(video),
@@ -120,6 +121,7 @@ def test_plan_chunks_splits_long_videos(tmp_path) -> None:
     )
     info = probe(video)
     chunks = plan_chunks(video, options, info, tmp_path, 30)
+    # 120s / 30s -> 4 planned chunks; the last one is long enough not to be merged
     assert len(chunks) >= 3
     assert chunks[0].src_start == 0.0
     assert abs(chunks[-1].src_end - info.duration) < 0.1
