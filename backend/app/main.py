@@ -20,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import __version__
 from .api import cover as cover_api
+from .api import diagnostics as diagnostics_api
 from .api import fonts as fonts_api
 from .api import jobs as jobs_api
 from .api import models as models_api
@@ -134,6 +135,7 @@ app.include_router(cover_api.router)
 app.include_router(uploads_api.router)
 app.include_router(jobs_api.router)
 app.include_router(fonts_api.router)
+app.include_router(diagnostics_api.router)
 
 _frontend_dist = _REPO_ROOT / "frontend" / "dist"
 if _frontend_dist.exists():

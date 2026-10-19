@@ -10,7 +10,6 @@ import { ProgressScreen } from "./screens/ProgressScreen";
 import { ResultScreen } from "./screens/ResultScreen";
 import { SystemScreen } from "./screens/SystemScreen";
 import { UploadScreen } from "./screens/UploadScreen";
-
 const client = new QueryClient();
 
 type View = "upload" | "configure" | "progress" | "result" | "history" | "system";

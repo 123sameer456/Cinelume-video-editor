@@ -1,6 +1,5 @@
 import { useCallback, useRef, useState } from "react";
 
-import { api } from "../api/client";
 import { friendlyMessage, type ApiError } from "../api/errors";
 import { uploadFileChunked, type UploadProgress } from "../hooks/useChunkedUpload";
 import { Banner, Button, formatBytes } from "../components/ui";

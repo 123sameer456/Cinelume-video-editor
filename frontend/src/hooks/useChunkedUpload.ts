@@ -1,6 +1,7 @@
 /** Chunked uploader: 8 MB parts, 3 parallel, retry with backoff, resumable. */
 
 import { api } from "../api/client";
+import type { UploadInfo } from "../api/types";
 
 const PARALLEL = 3;
 const MAX_RETRIES = 4;

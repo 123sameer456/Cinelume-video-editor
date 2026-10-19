@@ -1,19 +1,15 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+/** Options with a per-section reset, persisted to localStorage between runs. */
+
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { api } from "../api/client";
 import type { JobOptions } from "../api/types";
 
-/** Options with a per-section reset, persisted to localStorage between runs. */
-
 const STORAGE_KEY = "cinelume.options";
 
-export function useDefaults() {
-  return useQuery({
-    queryKey: ["defaults"],
-    queryFn: () => api.defaults(),
-    staleTime: Infinity,
-  });
+function mergeSection<T>(fallback: T, stored: Partial<T> | undefined): T {
+  return { ...fallback, ...(stored ?? {}) };
 }
 
 function mergeDefaults(defaults: JobOptions, stored: Partial<JobOptions> | null): JobOptions {
@@ -21,60 +17,85 @@ function mergeDefaults(defaults: JobOptions, stored: Partial<JobOptions> | null)
     return defaults;
   }
   return {
-    denoise: { ...defaults.denoise, ...(stored.denoise ?? {}) },
-    silence: { ...defaults.silence, ...(stored.silence ?? {}) },
-    subtitles: { ...defaults.subtitles, ...(stored.subtitles ?? {}) },
-    music: { ...defaults.music, ...(stored.music ?? {}) },
-    cover: { ...defaults.cover, ...(stored.cover ?? {}) },
-    output: { ...defaults.output, ...(stored.output ?? {}) },
-    performance: { ...defaults.performance, ...(stored.performance ?? {}) },
+    denoise: mergeSection(defaults.denoise, stored.denoise),
+    silence: mergeSection(defaults.silence, stored.silence),
+    subtitles: mergeSection(defaults.subtitles, stored.subtitles),
+    music: mergeSection(defaults.music, stored.music),
+    cover: mergeSection(defaults.cover, stored.cover),
+    output: mergeSection(defaults.output, stored.output),
+    performance: mergeSection(defaults.performance, stored.performance),
   };
 }
 
 export function useJobOptions() {
-  const defaults = useDefaults();
-  const client = useQueryClient();
-  const [options, setOptions] = useState<JobOptions | null>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? (JSON.parse(raw) as JobOptions) : null;
-    } catch {
-      return null;
-    }
+  const [serverDefaults, setServerDefaults] = useState<JobOptions | null>(null);
+  const [options, setOptions] = useState<JobOptions | null>(null);
+
+  useQuery({
+    queryKey: ["defaults"],
+    queryFn: async () => {
+      const data = await api.defaults();
+      setServerDefaults(data);
+      setOptions((current) => {
+        if (current) {
+          return mergeDefaults(data, current);
+        }
+        let stored: Partial<JobOptions> | null = null;
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          stored = raw ? (JSON.parse(raw) as Partial<JobOptions>) : null;
+        } catch {
+          stored = null;
+        }
+        return mergeDefaults(data, stored);
+      });
+      return data;
+    },
+    staleTime: Infinity,
   });
 
-  const update = (section: keyof JobOptions, patch: Partial<JobOptions[typeof section]>) => {
+  const update = <K extends keyof JobOptions>(section: K, patch: Partial<JobOptions[K]>) => {
     setOptions((current) => {
-      const base = current ?? defaults.data;
-      if (!base) {
+      if (!current) {
         return current;
       }
-      const next = { ...base, [section]: { ...base[section], ...patch } };
+      const next = {
+        ...current,
+        [section]: { ...current[section], ...patch },
+      } as JobOptions;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       return next;
     });
   };
 
   const resetSection = (section: keyof JobOptions) => {
-    if (!defaults.data) {
+    if (!serverDefaults) {
       return;
     }
     setOptions((current) => {
-      const base = current ?? defaults.data;
-      const next = { ...base, [section]: defaults.data[section] };
+      if (!current) {
+        return current;
+      }
+      const next = { ...current, [section]: serverDefaults[section] } as JobOptions;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       return next;
     });
-    void client.invalidateQueries({ queryKey: ["defaults"] });
   };
 
   const resetAll = () => {
-    if (!defaults.data) {
+    if (!serverDefaults) {
       return;
     }
     localStorage.removeItem(STORAGE_KEY);
-    setOptions(defaults.data);
+    setOptions(serverDefaults);
   };
 
-  return { options, defaults: defaults.data, update, resetSection, resetAll, isLoading: defaults.isLoading };
+  return {
+    options,
+    defaults: serverDefaults,
+    update,
+    resetSection,
+    resetAll,
+    isLoading: serverDefaults === null,
+  };
 }

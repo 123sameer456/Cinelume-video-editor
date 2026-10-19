@@ -38,6 +38,8 @@ export function ConfigureScreen({
     <div className="stack">
       <Section
         title="Silence"
+        open={open === "silence"}
+        onHeaderClick={() => toggle("silence")}
         actions={
           <Toggle
             label="Enabled"
@@ -133,6 +135,8 @@ export function ConfigureScreen({
 
       <Section
         title="Subtitles"
+        open={open === "subtitles"}
+        onHeaderClick={() => toggle("subtitles")}
         actions={
           <Toggle
             label="Enabled"
@@ -312,6 +316,8 @@ export function ConfigureScreen({
 
       <Section
         title="Music"
+        open={open === "music"}
+        onHeaderClick={() => toggle("music")}
         actions={
           <Toggle
             label="Enabled"
@@ -327,6 +333,8 @@ export function ConfigureScreen({
 
       <Section
         title="Cover"
+        open={open === "cover"}
+        onHeaderClick={() => toggle("cover")}
         actions={
           <Toggle
             label="Enabled"
@@ -342,6 +350,8 @@ export function ConfigureScreen({
 
       <Section
         title="Output"
+        open={open === "output"}
+        onHeaderClick={() => toggle("output")}
         actions={<Button onClick={() => resetSection("output")}>Reset</Button>}
       >
         {open === "output" ? (
@@ -426,7 +436,11 @@ export function ConfigureScreen({
         ) : null}
       </Section>
 
-      <Section title="Advanced">
+      <Section
+        title="Advanced"
+        open={open === "advanced"}
+        onHeaderClick={() => toggle("advanced")}
+      >
         {open === "advanced" ? (
           <>
             <Field label="Chunking">

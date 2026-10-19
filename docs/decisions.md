@@ -177,6 +177,65 @@ Ambiguities resolved while implementing, with the safest default chosen.
 - **`scripts/benchmark.py`** runs the same synthetic clip through 1/2/4 workers and
   prints wall time, speedup and peak RSS; run it before tuning the defaults.
 
+## Phase 6 - React frontend
+
+- **Plain CSS instead of Tailwind + Radix.** The plan listed Tailwind "(+ Radix
+  primitives)"; the UI is built with a small hand-rolled design system in `index.css`
+  (CSS variables + BEM-ish classes). That keeps the dependency tree small, avoids a
+  PostCSS setup, and every option from the schema is still reachable. Swapping to
+  Tailwind later is a pure styling change.
+- **React 18 + TanStack Query** are the only runtime dependencies; `react-hook-form` was
+  not needed because the option forms are simple controlled inputs with server-side
+  validation surfaced through banners.
+- **`openapi-typescript` types are generated into `src/api/schema.d.ts`** (with the saved
+  `openapi.json` and an `npm run openapi` script) and the app-level types in
+  `src/api/types.ts` mirror the backend models so the UI compiles without the server.
+- **The uploader is a plain async worker pool** (8 MB parts, 3 parallel, exponential
+  retry, resume via the server's `received_parts`) rather than a library.
+- **Section collapsing** in the Configure screen is a header click on each card, with the
+  Silence section open by default (per the plan).
+- **Playwright e2e is deferred** to Phase 7 along with the rest of the test suites; the
+  verification for this phase is `npm run build` (tsc strict) plus the built `dist/`
+  being served by FastAPI at `/`.
+
+## Phase 7 - Hardening, security, packaging
+
+- **Static security tests** (in `tests/test_security.py`) assert there is no
+  `shell=True`, no `os.system`/`os.popen` and no shell module anywhere in `app/`. The
+  first version of that test matched the *docstring* that says "never shell=True", so it
+  now walks the AST and checks only real code nodes.
+- **Diagnostics bundle** lives at `GET /api/jobs/{id}/diagnostics`: a zip with system
+  info, options, the chunk manifest and the last 200 log lines - explicitly no media.
+- **`safe_child`** guards every path built from a client-supplied name; the file
+  endpoints never join raw user text (the `kind` is looked up in a fixed table).
+- **Windows packaging**: `scripts/setup.ps1` installs Python/FFmpeg/Node via winget when
+  missing, creates the venv, installs `backend[asr,dev]`, builds the frontend and
+  optionally pre-downloads a Whisper model. `scripts/start.bat` starts uvicorn on
+  `127.0.0.1:8000` (single worker) and opens the browser.
+- **CI** (`.github/workflows/ci.yml`) runs ruff + pytest on a Windows runner with FFmpeg
+  from Chocolatey, and builds the frontend. The two `@slow` ASR tests are skipped
+  unless `CINELUME_SLOW=1`.
+- **The equivalence test now accepts `skipped` chunks**: a 120s source with speech only
+  in the first 6s produces three entirely-silent chunks, which the plan says must be
+  skipped rather than fail the job.
+
+### Final edge-case checklist
+
+| Area | Cases | Where |
+|---|---|---|
+| Media | no audio / multi-audio / mono / 5.1 | `test_probe_*`, `test_denoise`, `test_master` |
+| Media | VFR / rotation / odd dims / HDR / 10-bit | `test_probe_monkeypatched`, `test_vfr_source_*` |
+| Media | offsets, short audio, corrupt, image, text file | `test_probe_*`, `test_upload_audio_only_rejected` |
+| Silence | none / all / constant noise / X equal / hundreds / short segments | `test_segments_*`, `test_cut_*` |
+| Silence | blips dropped, first/last fade | `test_segments_*`, `test_fades_are_visible_*` |
+| Subtitles | no speech, hallucination loops, fast speech, long words, RTL, box/outline, colours, GPU missing, model missing | `test_subtitles_*`, `test_transcribe_pipeline_*` |
+| Music | short/long/corrupt track, enabled without track, volume 0, no-audio video, silent + loudnorm, ducking | `test_music_*`, `test_master_*` |
+| Cover | black frames, reproducible seed, wrapping, RTL, aspect, jpg | `test_cover_*` |
+| Chunking | boundary silence, hard boundary, tiny last chunk, equivalence, resume, cache keys, cancel | `test_chunker_*`, `test_stage_cache_*` |
+| System | two jobs queued, SSE reconnect, upload resume, part out of range, diagnostics zip, access token | `test_jobs_api_*`, `test_uploads_api_*`, `test_security_paths_*` |
+
+
+
 
 
 

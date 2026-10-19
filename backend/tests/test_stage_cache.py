@@ -106,9 +106,9 @@ def test_chunked_and_single_chunk_give_the_same_duration(
         chunked_job.get("stage"),
     )
 
-    # chunk states were tracked per chunk
+    # chunk states were tracked per chunk; chunks without speech are skipped
     assert len(chunked_job["chunks"]) >= 2
-    assert all(c["status"] == "done" for c in chunked_job["chunks"])
+    assert all(c["status"] in ("done", "skipped") for c in chunked_job["chunks"])
 
     single_dur = _video_duration(client, single["id"], tmp_path)
     chunked_dur = _video_duration(client, chunked["id"], tmp_path)

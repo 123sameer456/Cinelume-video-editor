@@ -4,18 +4,29 @@ export function Section({
   title,
   children,
   actions,
+  onHeaderClick,
+  open = true,
 }: {
   title: string;
   children: ReactNode;
   actions?: ReactNode;
+  onHeaderClick?: () => void;
+  open?: boolean;
 }) {
   return (
     <section className="card">
-      <header className="card-head">
-        <h2>{title}</h2>
+      <header
+        className="card-head"
+        onClick={onHeaderClick}
+        style={onHeaderClick ? { cursor: "pointer" } : undefined}
+      >
+        <h2>
+          {onHeaderClick ? (open ? "▾ " : "▸ ") : ""}
+          {title}
+        </h2>
         <div className="card-actions">{actions}</div>
       </header>
-      <div className="card-body">{children}</div>
+      {open ? <div className="card-body">{children}</div> : null}
     </section>
   );
 }
