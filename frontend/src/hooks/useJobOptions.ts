@@ -8,8 +8,17 @@ import type { JobOptions } from "../api/types";
 
 const STORAGE_KEY = "cinelume.options";
 
-function mergeSection<T>(fallback: T, stored: Partial<T> | undefined): T {
-  return { ...fallback, ...(stored ?? {}) };
+function mergeSection<T extends object>(fallback: T, stored: Partial<T> | undefined): T {
+  // Only keys the server still knows about survive; stale localStorage keys from an
+  // older backend version would otherwise be rejected by extra="forbid" with a 422.
+  const merged = { ...fallback };
+  for (const key of Object.keys(fallback) as (keyof T)[]) {
+    const value = (stored as Record<string, unknown> | undefined)?.[key as string];
+    if (value !== undefined && value !== null) {
+      merged[key] = value as T[keyof T];
+    }
+  }
+  return merged;
 }
 
 function mergeDefaults(defaults: JobOptions, stored: Partial<JobOptions> | null): JobOptions {

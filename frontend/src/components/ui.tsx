@@ -77,15 +77,25 @@ export function NumberInput({
   step?: number;
   onChange: (value: number) => void;
 }) {
+  // Clearing the field must not send 0 (or below min) to the server.
+  const safe = Number.isFinite(value) ? value : 0;
+  const clamped =
+    min !== undefined && safe < min ? min : max !== undefined && safe > max ? max : safe;
   return (
     <input
       className="input"
       type="number"
-      value={Number.isFinite(value) ? value : 0}
+      value={clamped}
       min={min}
       max={max}
       step={step}
-      onChange={(event) => onChange(Number(event.target.value))}
+      onChange={(event) => {
+        const parsed = Number(event.target.value);
+        const next = Number.isFinite(parsed) ? parsed : (min ?? 0);
+        onChange(
+          min !== undefined && next < min ? min : max !== undefined && next > max ? max : next,
+        );
+      }}
     />
   );
 }

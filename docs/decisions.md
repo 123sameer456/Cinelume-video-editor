@@ -221,6 +221,15 @@ Ambiguities resolved while implementing, with the safest default chosen.
 
 ### Final edge-case checklist
 
+> **422 on "Start editing" (found in real use):** the server validates every option and
+> rejects, among others, `cover.lines` containing `null` (a sparse array from typing in
+> the 4th box before the 2nd), music enabled without a track, and any numeric field that
+> was cleared to 0. The frontend now (a) renders the server's per-field 422 messages in
+> a banner instead of silently swallowing them, (b) keeps `cover.lines` a dense array of
+> strings, (c) clamps number inputs to their minimum, and (d) drops stale localStorage
+> keys that the current backend no longer knows (they would otherwise trip
+> `extra="forbid"`).
+
 | Area | Cases | Where |
 |---|---|---|
 | Media | no audio / multi-audio / mono / 5.1 | `test_probe_*`, `test_denoise`, `test_master` |

@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { api } from "./api/client";
+import type { ApiError } from "./api/errors";
 import type { JobRecord, UploadInfo } from "./api/types";
 import { useJobOptions } from "./hooks/useJobOptions";
 import { ConfigureScreen } from "./screens/ConfigureScreen";
@@ -10,6 +11,7 @@ import { ProgressScreen } from "./screens/ProgressScreen";
 import { ResultScreen } from "./screens/ResultScreen";
 import { SystemScreen } from "./screens/SystemScreen";
 import { UploadScreen } from "./screens/UploadScreen";
+
 const client = new QueryClient();
 
 type View = "upload" | "configure" | "progress" | "result" | "history" | "system";
@@ -19,15 +21,19 @@ function Shell() {
   const [upload, setUpload] = useState<UploadInfo | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<ApiError | null>(null);
   const { options, update, resetSection, isLoading } = useJobOptions();
 
   const start = async () => {
     if (!upload || !options) return;
     setStarting(true);
+    setStartError(null);
     try {
       const job = await api.createJob(upload.upload_id, options);
       setJobId(job.id);
       setView("progress");
+    } catch (error) {
+      setStartError(error as ApiError);
     } finally {
       setStarting(false);
     }
@@ -76,6 +82,7 @@ function Shell() {
               resetSection={resetSection}
               onStart={() => void start()}
               busy={starting || isLoading}
+              startError={startError}
             />
           ) : (
             <p className="muted">Upload a video first.</p>

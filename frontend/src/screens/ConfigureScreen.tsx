@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { api } from "../api/client";
+import { fieldMessages, type ApiError } from "../api/errors";
 import type { JobOptions } from "../api/types";
 import { Banner, Button, ColorInput, Field, NumberInput, Section, Select, Slider, Toggle } from "../components/ui";
 
@@ -12,6 +13,7 @@ export function ConfigureScreen({
   resetSection,
   onStart,
   busy,
+  startError,
 }: {
   uploadId: string;
   options: JobOptions | null;
@@ -19,6 +21,7 @@ export function ConfigureScreen({
   resetSection: (section: keyof JobOptions) => void;
   onStart: () => void;
   busy: boolean;
+  startError: ApiError | null;
 }) {
   const [open, setOpen] = useState<string | null>("silence");
   const fonts = useQuery({ queryKey: ["fonts"], queryFn: () => api.fonts() });
@@ -29,6 +32,7 @@ export function ConfigureScreen({
   }
 
   const toggle = (name: string) => setOpen((current) => (current === name ? null : name));
+  const musicInvalid = options.music.enabled && !options.music.track_id;
   const fontOptions = (fonts.data?.fonts ?? []).map((font) => ({
     value: font.family,
     label: font.family,
@@ -36,6 +40,16 @@ export function ConfigureScreen({
 
   return (
     <div className="stack">
+      {startError ? (
+        <Banner tone="error">
+          <b>The settings were rejected:</b>
+          <ul className="warnings">
+            {fieldMessages(startError).map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
+        </Banner>
+      ) : null}
       <Section
         title="Silence"
         open={open === "silence"}
@@ -489,8 +503,14 @@ export function ConfigureScreen({
         ) : null}
       </Section>
 
+      {musicInvalid ? (
+        <Banner tone="warn">
+          Music is switched on but no track is selected — pick or upload one in the Music
+          section, or switch Music off.
+        </Banner>
+      ) : null}
       {busy ? <Banner tone="info">Starting…</Banner> : null}
-      <Button kind="primary" onClick={onStart} disabled={busy}>
+      <Button kind="primary" onClick={onStart} disabled={busy || musicInvalid}>
         Start editing →
       </Button>
     </div>
@@ -660,7 +680,11 @@ function CoverSection({
             placeholder={index === 0 ? "First line" : "…"}
             onChange={(event) => {
               const lines = [...options.cover.lines];
+              // "" (never undefined/null) so the array is always dense strings
               lines[index] = event.target.value;
+              for (let fill = 0; fill < 4; fill += 1) {
+                lines[fill] = lines[fill] ?? "";
+              }
               update("cover", { lines: lines.slice(0, 4) });
             }}
           />
