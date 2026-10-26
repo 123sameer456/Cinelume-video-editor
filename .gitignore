@@ -11,7 +11,7 @@ build/
 dist/
 
 # Local data (uploads, work, outputs, models, music, job db)
-data/
+data/*
 
 # Env
 .env

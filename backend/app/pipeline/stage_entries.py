@@ -74,7 +74,7 @@ def stage_audio_entry(
     on_progress = _progress_reporter(progress_queue, index, "audio", 0.9, 0.0)
     try:
         result = stage_audio(
-            Path(workdir),
+            chunk_dir,
             chunk,
             Path(source),
             options,

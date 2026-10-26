@@ -19,6 +19,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__
+from .api import clips as clips_api
 from .api import cover as cover_api
 from .api import diagnostics as diagnostics_api
 from .api import fonts as fonts_api
@@ -133,6 +134,7 @@ app.include_router(models_api.router)
 app.include_router(music_api.router)
 app.include_router(cover_api.router)
 app.include_router(uploads_api.router)
+app.include_router(clips_api.router)
 app.include_router(jobs_api.router)
 app.include_router(fonts_api.router)
 app.include_router(diagnostics_api.router)
