@@ -3,7 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "../api/client";
 import { Banner, Button } from "../components/ui";
 
-export function ResultScreen({ jobId }: { jobId: string }) {
+export function ResultScreen({
+  jobId,
+  onMakeShorts,
+}: {
+  jobId: string;
+  onMakeShorts?: () => void;
+}) {
   const job = useQuery({ queryKey: ["job", jobId], queryFn: () => api.getJob(jobId) });
 
   if (job.isLoading) {
@@ -30,6 +36,9 @@ export function ResultScreen({ jobId }: { jobId: string }) {
           <a className="btn btn-primary" href={api.fileUrl(jobId, "video")} download>
             Download video
           </a>
+          {onMakeShorts ? (
+            <Button onClick={onMakeShorts}>Cut shorts / reels →</Button>
+          ) : null}
           <a className="btn" href={api.fileUrl(jobId, "transcript")} download>
             Transcript (JSON)
           </a>

@@ -2,6 +2,8 @@
 
 import { toApiError, type ApiError } from "./errors";
 import type {
+  ClipExport,
+  ClipSpec,
   CoverOptions,
   CoverResult,
   JobOptions,
@@ -111,6 +113,16 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ upload_id: uploadId, options }),
     }),
+
+  // shorts/clips
+  exportClips: (jobId: string, clips: ClipSpec[]) =>
+    request<{ clips: ClipExport[] }>(`/jobs/${jobId}/clips`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clips: clips.map(({ name, start, end }) => ({ name, start, end })) }),
+    }),
+
+  clipUrl: (jobId: string, index: number) => `${BASE}/jobs/${jobId}/files/clip/${index}`,
 };
 
 export interface UploadInitResponse {

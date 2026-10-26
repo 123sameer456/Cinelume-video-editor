@@ -268,3 +268,20 @@ export interface CoverResult {
   image_url: string;
   warnings: string[];
 }
+
+export interface ClipSpec {
+  id: string;
+  name: string;
+  start: number;
+  end: number;
+}
+
+export interface ClipExport {
+  index: number;
+  name: string;
+  start: number;
+  end: number;
+  duration: number;
+  file_url: string;
+  download_name: string;
+}

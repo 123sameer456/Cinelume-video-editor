@@ -31,11 +31,31 @@ export function Section({
   );
 }
 
-export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+export function Tip({ text }: { text: string }) {
+  return (
+    <span className="tip" tabIndex={0} role="img" aria-label={text} onClick={(event) => event.preventDefault()}>
+      <span className="tip-icon" aria-hidden="true">?</span>
+      <span className="tip-bubble" aria-hidden="true">{text}</span>
+    </span>
+  );
+}
+
+export function Field({
+  label,
+  hint,
+  tip,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  tip?: string;
+  children: ReactNode;
+}) {
   return (
     <label className="field">
       <span className="field-label">
         {label}
+        {tip ? <Tip text={tip} /> : null}
         {hint ? <em className="field-hint">{hint}</em> : null}
       </span>
       {children}
@@ -47,10 +67,12 @@ export function Toggle({
   label,
   checked,
   onChange,
+  tip,
 }: {
   label: string;
   checked: boolean;
   onChange: (value: boolean) => void;
+  tip?: string;
 }) {
   return (
     <label className="toggle">
@@ -60,6 +82,7 @@ export function Toggle({
         onChange={(event) => onChange(event.target.checked)}
       />
       <span>{label}</span>
+      {tip ? <Tip text={tip} /> : null}
     </label>
   );
 }

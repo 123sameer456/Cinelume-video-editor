@@ -8,13 +8,14 @@ import { useJobOptions } from "./hooks/useJobOptions";
 import { ConfigureScreen } from "./screens/ConfigureScreen";
 import { HistoryScreen } from "./screens/HistoryScreen";
 import { ProgressScreen } from "./screens/ProgressScreen";
+import { ShortsScreen } from "./screens/ShortsScreen";
 import { ResultScreen } from "./screens/ResultScreen";
 import { SystemScreen } from "./screens/SystemScreen";
 import { UploadScreen } from "./screens/UploadScreen";
 
 const client = new QueryClient();
 
-type View = "upload" | "configure" | "progress" | "result" | "history" | "system";
+type View = "upload" | "configure" | "progress" | "result" | "shorts" | "history" | "system";
 
 function Shell() {
   const [view, setView] = useState<View>("upload");
@@ -49,6 +50,7 @@ function Shell() {
             ["configure", "Configure"],
             ["progress", "Progress"],
             ["result", "Result"],
+            ["shorts", "Shorts"],
             ["history", "History"],
             ["system", "System"],
           ] as const
@@ -93,7 +95,17 @@ function Shell() {
           <ProgressScreen jobId={jobId} onDone={() => setView("result")} />
         ) : null}
 
-        {view === "result" && jobId ? <ResultScreen jobId={jobId} /> : null}
+        {view === "result" && jobId ? (
+          <ResultScreen jobId={jobId} onMakeShorts={() => setView("shorts")} />
+        ) : null}
+
+        {view === "shorts" ? (
+          jobId ? (
+            <ShortsScreen jobId={jobId} />
+          ) : (
+            <p className="muted">Run a job first, then mark shorts here.</p>
+          )
+        ) : null}
 
         {view === "history" ? (
           <HistoryScreen
